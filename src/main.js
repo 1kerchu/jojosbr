@@ -4,12 +4,13 @@ import { Game } from './game.js';
 import { CHARACTERS, charById, BOT_NAMES } from './characters.js';
 import { loadAssets } from './entities.js';
 import { audio } from './audio.js';
+import { Preview } from './preview.js';
 
 const $ = (id) => document.getElementById(id);
 const LENGTHS = { corta: 4200, normal: 7000, epica: 11000 };
 const show = (id) => { for (const s of ['menu', 'lobby']) $(s).classList.toggle('hidden', s !== id); };
 
-let net = null, game = null;
+let net = null, game = null, preview = null;
 let lobby = { players: [], settings: { bots: 3, length: 'normal' } };
 let myName = localStorage.getItem('sbr-name') || '';
 let myChar = localStorage.getItem('sbr-char') || 'gyro';
@@ -83,6 +84,8 @@ function enterLobby(code) {
   $('wait-host').classList.toggle('hidden', net.isHost);
   renderCharGrid();
   renderLobby();
+  if (!preview) preview = new Preview($('preview'));
+  preview.setChar(myChar); preview.start();
 }
 
 function renderCharGrid() {
@@ -98,6 +101,7 @@ function renderCharGrid() {
     if (net.isHost) { const me = lobby.players.find(p => p.id === net.myId); if (me) me.char = myChar; pushLobby(); }
     else net.broadcast({ t: 'char', char: myChar });
     renderCharGrid(); renderLobby();
+    if (preview) preview.setChar(myChar);
   });
   document.querySelectorAll('[data-portrait]').forEach(cv => drawPortrait(cv, charById(cv.dataset.portrait)));
   const c = charById(myChar);
@@ -172,6 +176,7 @@ $('btn-start').onclick = () => {
 
 function startGame(m) {
   audio.init();
+  if (preview) preview.stop();
   $('lobby').classList.add('hidden');
   $('loading').classList.remove('hidden');
   setTimeout(() => {
@@ -193,8 +198,10 @@ $('btn-mute').onclick = () => { audio.init(); audio.setMuted(!audio.muted); $('b
 
 // ------------------------------------------------------------------ arranque
 (async () => {
-  $('menu-status').textContent = 'Cargando caballos...';
-  await loadAssets();
+  $('menu-status').textContent = 'Cargando caballos y jinetes...';
+  let n = 0;
+  const total = 1 + Object.keys((await fetch(import.meta.env.BASE_URL + 'models/manifest.json').then(r => r.json()).catch(() => ({}))).characters || {}).length;
+  await loadAssets(() => { n++; $('menu-status').textContent = `Cargando caballos y jinetes... ${Math.round(n / total * 100)}%`; });
   $('menu-status').textContent = '';
   $('main-buttons').classList.remove('disabled');
   const hashCode = location.hash.replace('#', '').trim();

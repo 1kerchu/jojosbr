@@ -53,6 +53,7 @@ export class Game {
     this.initNet();
     this.initHud();
     this.lastCount = 4;
+    this.introCard();
     this.clock = new THREE.Clock();
     this.running = true;
     this.loop = this.loop.bind(this);
@@ -535,6 +536,15 @@ export class Game {
       if (st.exhausted && st.stamina > 0.35) st.exhausted = false;
     }
     st.sprinting = sprinting;
+    // rebufo: ir pegado detrás de otro jinete da velocidad extra
+    let draft = false;
+    if (racing && !p.finished && st.v > 15) for (const o of this.players.values()) {
+      if (o === p) continue; const ds = o.st.s - st.s;
+      if (ds > 3.5 && ds < 20 && Math.abs(o.st.lat - st.lat) < 2.6) { draft = true; break; }
+    }
+    st.draft = draft ? Math.min(1, (st.draft || 0) + dt * 1.5) : Math.max(0, (st.draft || 0) - dt * 2);
+    max *= 1 + 0.1 * st.draft;
+    if (draft && st.draft > 0.6) st.stamina = Math.min(1, st.stamina + 0.03 * dt);
     if (st.exhausted) max *= 0.8;
     if (e.boost > 0) max *= 1.45;
     if (e.dino > 0) max *= 1.35;
@@ -679,7 +689,17 @@ export class Game {
         this.lastCount = n;
         if (n > 0 && n <= 3) { this.bigText(String(n), 'count'); audio.sfx('beep'); }
       }
-      if (this.raceTime >= 0) { this.state = 'race'; this.bigText('GO!!', 'go'); audio.sfx('go'); this.stageBanner(0); }
+      const up = this.readInput().up;
+      if (up && this.upSince == null) this.upSince = this.raceTime;
+      if (!up) this.upSince = null;
+      if (this.raceTime >= 0) {
+        this.state = 'race'; this.bigText('GO!!', 'go'); audio.sfx('go'); this.stageBanner(0);
+        const st = this.me.st;
+        if (this.upSince != null && this.upSince > -0.5) { st.eff.boost = 1.6; st.v = 20; setTimeout(() => this.bigText('PERFECT START!', 'gold'), 700); audio.sfx('luck'); }
+        else if (this.upSince != null && this.upSince < -1.6) { st.eff.stun = 0.9; setTimeout(() => this.toast('¡Salida en falso! Pulsa W justo al decir GO para una salida perfecta.'), 300); }
+        // los bots también intentan salir bien
+        for (const p of this.players.values()) if (p.sim && p.bot && Math.random() < 0.5) p.st.eff.boost = 1.2;
+      }
     }
     const inp = this.readInput();
     for (const p of this.players.values()) {
@@ -723,19 +743,29 @@ export class Game {
     if (me.st.eff.dino > 0) { back += 3; up += 2; }
     const desired = g.position.clone().addScaledVector(fwd, -back); desired.y += up;
     if (me.finished) { const a = this.time * 0.4; desired.set(g.position.x + Math.cos(a) * 12, g.position.y + 5, g.position.z + Math.sin(a) * 12); }
+    let intro = false;
+    if (this.state === 'countdown') {
+      // cámara cinemática: empieza delante del jinete y gira hasta colocarse detrás
+      intro = true;
+      const t = clamp((this.raceTime + 4) / 3.4, 0, 1), e = t * t * (3 - 2 * t);
+      const ang = yaw + lerp(0.55, Math.PI, e);
+      const dist = lerp(5.2, back, e), h = lerp(1.9, up, e);
+      desired.set(g.position.x + Math.sin(ang) * dist, g.position.y + h, g.position.z + Math.cos(ang) * dist);
+      this.camera.position.copy(desired); this.camInit = true;
+    }
     const k = 1 - Math.exp(-dt * 6);
     if (!this.camInit) { this.camera.position.copy(desired); this.camInit = true; }
     this.camera.position.lerp(desired, k);
     const minY = this.track.groundY(me.st.s - back * 0.8, me.st.lat) + 1.2;
     if (this.camera.position.y < minY) this.camera.position.y = minY;
-    const look = g.position.clone().addScaledVector(fwd, 6); look.y += 2.2;
+    const look = g.position.clone().addScaledVector(fwd, intro ? lerp(0, 6, clamp((this.raceTime + 4) / 3.4, 0, 1)) : 6); look.y += 2.2;
     if (this.shake > 0) { this.shake = Math.max(0, this.shake - dt); const s = this.shake * 0.8; this.camera.position.x += (Math.random() - 0.5) * s; this.camera.position.y += (Math.random() - 0.5) * s; }
     this.camera.lookAt(look);
     const fast = me.st.eff.boost > 0 || me.st.sprinting;
     const fov = 68 + Math.min(18, me.st.v * 0.25) + (fast ? 6 : 0);
     this.camera.fov = lerp(this.camera.fov, fov, Math.min(1, dt * 3)); this.camera.updateProjectionMatrix();
     // la sombra sigue al jugador
-    const sd = this.sunDir || new THREE.Vector3(0.4, 0.6, 0.3);
+    const sd = this.lightDir || new THREE.Vector3(0.4, 0.6, 0.3);
     this.sun.position.copy(g.position).addScaledVector(sd, 150);
     this.sun.target.position.copy(g.position);
     this.sky.position.copy(this.camera.position);
@@ -750,12 +780,15 @@ export class Game {
     this.skyMat.uniforms.time.value = this.time;
     this.skyMat.uniforms.night.value = p.city;
     const yaw = this.track.yaw(Math.max(0, s));
+    // el sol del cielo queda delante (atardeceres), pero la luz principal entra de lado para no dejar a los jinetes a contraluz
     this.sunDir = new THREE.Vector3(Math.sin(yaw) * 0.8 + 0.3, Math.max(0.08, p.sunEl), Math.cos(yaw) * 0.8).normalize();
+    const ly = yaw + 1.25;
+    this.lightDir = new THREE.Vector3(Math.sin(ly), Math.max(0.45, p.sunEl + 0.35), Math.cos(ly)).normalize();
     this.skyMat.uniforms.sunDir.value.copy(this.sunDir);
     this.scene.fog.color.copy(p.fog);
     this.sun.color.copy(p.sun);
     this.sun.intensity = lerp(2.6, 0.9, p.city);
-    this.hemi.intensity = lerp(1.15, 0.7, p.city);
+    this.hemi.intensity = lerp(1.35, 0.8, p.city) + p.snow * 0.25;
     this.hemi.color.copy(p.skyTop).lerp(new THREE.Color(0xffffff), 0.5);
     this.bloom.strength = lerp(0.5, 0.9, p.city);
     // cambio de etapa del jugador
@@ -809,6 +842,7 @@ export class Game {
     }
     this.drawMap(order);
     this.drawSpeedLines(st);
+    $('draft').classList.toggle('on', (st.draft || 0) > 0.5);
   }
   ranking() {
     return [...this.players.values()].sort((a, b) => {
@@ -842,6 +876,7 @@ export class Game {
     const c = this.slCtx, W = c.canvas.width, H = c.canvas.height;
     c.clearRect(0, 0, W, H);
     let k = clamp((st.v - 36) / 20, 0, 1);
+    if ((st.draft || 0) > 0.3) k = Math.max(k, 0.45 * st.draft);
     if (st.eff.boost > 0 || st.eff.dino > 0) k = Math.max(k, 0.8);
     if (k <= 0.01) return;
     const cx = W / 2, cy = H * 0.45, n = Math.floor(40 * k);
@@ -879,6 +914,12 @@ export class Game {
     const el = $('standbanner');
     el.innerHTML = `<span class="sn">「${char.stand}」</span><span class="an">${char.ability.name}</span>`;
     el.style.setProperty('--c', char.color);
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+  }
+  introCard() {
+    const c = this.me.char, el = $('introcard');
+    el.innerHTML = `<div class="ic-name">${c.name}</div><div class="ic-stand">Stand: 「${c.stand}」</div><div class="ic-horse">🐎 ${c.horse}</div><div class="ic-go">ゴゴゴゴ</div>`;
+    el.style.setProperty('--c', c.color);
     el.className = ''; void el.offsetWidth; el.className = 'show';
   }
   stageBanner(i) {
