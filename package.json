@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "build:single": "node scripts/embed-models.mjs && vite build --mode single && node scripts/copy-single.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.4",
     "three": "^0.170.0"
   },
   "devDependencies": {
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.0.3"
   }
 }

@@ -2,7 +2,7 @@ import './style.css';
 import { Net } from './net.js';
 import { Game } from './game.js';
 import { CHARACTERS, charById, BOT_NAMES } from './characters.js';
-import { loadAssets } from './entities.js';
+import { loadAssets, getManifest } from './entities.js';
 import { audio } from './audio.js';
 import { Preview } from './preview.js';
 
@@ -198,9 +198,10 @@ $('btn-mute').onclick = () => { audio.init(); audio.setMuted(!audio.muted); $('b
 
 // ------------------------------------------------------------------ arranque
 (async () => {
+  document.body.setAttribute('data-ready', '1');
   $('menu-status').textContent = 'Cargando caballos y jinetes...';
   let n = 0;
-  const total = 1 + Object.keys((await fetch(import.meta.env.BASE_URL + 'models/manifest.json').then(r => r.json()).catch(() => ({}))).characters || {}).length;
+  const total = 1 + Object.keys((await getManifest()).characters || {}).length;
   await loadAssets(() => { n++; $('menu-status').textContent = `Cargando caballos y jinetes... ${Math.round(n / total * 100)}%`; });
   $('menu-status').textContent = '';
   $('main-buttons').classList.remove('disabled');

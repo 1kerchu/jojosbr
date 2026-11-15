@@ -105,5 +105,15 @@
   </section>
 
   <script type="module" src="/src/main.js"></script>
+  <script>
+    // Si se abre este index.html con doble clic, el navegador bloquea los módulos: avisamos de que hay que usar JUGAR.html
+    setTimeout(function () {
+      if (document.body.getAttribute('data-ready')) return;
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#12041f;color:#fff;font:20px system-ui;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';
+      d.innerHTML = '<div><h1 style="color:#ffe14d">Steel Ball Run</h1><p>Este archivo no se puede abrir con doble clic.</p><p>Abre <b style="color:#ff5fd2">JUGAR.html</b> (en la misma carpeta) o la web publicada.</p></div>';
+      document.body.appendChild(d);
+    }, 2500);
+  </script>
 </body>
 </html>

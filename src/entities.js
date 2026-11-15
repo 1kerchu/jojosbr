@@ -6,14 +6,21 @@ export { buildProceduralRider };
 
 const BASE = import.meta.env.BASE_URL || './';
 const loader = new GLTFLoader();
-const loadGLB = (url) => new Promise((res) => loader.load(url, g => res(g), undefined, () => res(null)));
+import EMBEDDED from './embedded-models.js';
+const b64ToBuf = (b64) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
+const loadGLB = (url) => new Promise((res) => {
+  const name = url.split('/').pop();
+  if (EMBEDDED && EMBEDDED.files[name]) { loader.parse(b64ToBuf(EMBEDDED.files[name]), '', g => res(g), () => res(null)); return; }
+  loader.load(url, g => res(g), undefined, () => res(null));
+});
+export const getManifest = async () => EMBEDDED ? EMBEDDED.manifest : fetch(BASE + 'models/manifest.json').then(r => r.json()).catch(() => ({}));
 
 export const Assets = { horse: null, chars: {}, manifest: {} };
 
 // Carga el caballo y los modelos de personaje que haya en public/models/manifest.json
 export async function loadAssets(onProgress) {
   let manifest = {};
-  try { manifest = await (await fetch(BASE + 'models/manifest.json')).json(); } catch (e) { manifest = {}; }
+  manifest = await getManifest();
   Assets.manifest = manifest;
   const jobs = [];
   jobs.push(loadGLB(BASE + 'models/Horse.glb').then(g => { Assets.horse = g; onProgress && onProgress('Caballo'); }));
@@ -105,7 +112,7 @@ function nameSprite(text, color) {
   ctx.fillStyle = color; ctx.fillText(text, 256, 50);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
-  sp.scale.set(0.15, 0.028, 1); sp.renderOrder = 10;
+  sp.scale.set(0.3, 0.056, 1); sp.renderOrder = 10;
   return sp;
 }
 

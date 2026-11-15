@@ -30,6 +30,11 @@ También funciona con mando (LB = Golden Spin) y en móvil (botones táctiles).
 - **Rebufo**: ir pegado detrás de otro jinete da velocidad extra.
 - **Salida perfecta**: pulsa `W` justo al decir GO (antes de tiempo = salida en falso).
 
+## Cómo abrir el juego
+- **Lo más fácil:** abre **`JUGAR.html`** con doble clic (lleva todo dentro, unos 24 MB). Necesita internet solo para las fuentes y para conectar con amigos.
+- `index.html` **no** se puede abrir con doble clic: es la versión de desarrollo (`npm run dev`).
+- Para compartirlo con amigos sin enviar archivos: publícalo en GitHub Pages (ver abajo) y pásales el enlace.
+
 ## Jugar con amigos
 1. Uno pulsa **Crear sala** y comparte el código (o el enlace con «Copiar enlace»).
 2. Los demás escriben el código y pulsan **Unirse**.
@@ -42,7 +47,8 @@ La conexión es P2P (PeerJS + WebRTC): no hace falta servidor propio. En algunas
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # genera dist/
+npm run build    # genera dist/ (para publicar en una web)
+npm run build:single   # regenera JUGAR.html (un solo archivo, funciona con doble clic)
 ```
 
 ### Publicar en GitHub Pages
