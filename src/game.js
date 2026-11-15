@@ -468,7 +468,7 @@ export class Game {
       pr.s += pr.vs * dt; pr.lat += pr.vl * dt;
       this.track.pos(pr.s, pr.lat, v);
       pr.mesh.position.set(v.x, this.track.roadY(pr.s) + this.track.sideHeight(pr.s, pr.lat) + pr.y, v.z);
-      pr.mesh.rotation.y = this.track.yaw(pr.s) + Math.atan2(pr.vl, pr.vs);
+      pr.mesh.rotation.y = this.track.yaw(pr.s) - Math.atan2(pr.vl, pr.vs);
       if (pr.mesh.userData.spin) { pr.mesh.userData.spin.rotation.z += dt * 30; }
       if (Math.random() < 0.6) this.sparks(pr.mesh.position, pr.kind === 'nail' ? '#ff7ae0' : '#7dff6a', 1, 2);
       // solo el dueño del proyectil decide si impacta

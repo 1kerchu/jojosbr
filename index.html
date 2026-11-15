@@ -108,6 +108,7 @@
   <script>
     // Si se abre este index.html con doble clic, el navegador bloquea los módulos: avisamos de que hay que usar JUGAR.html
     setTimeout(function () {
+      if (location.protocol !== 'file:' || !document.querySelector('script[src$="/src/main.js"]')) return;
       if (document.body.getAttribute('data-ready')) return;
       var d = document.createElement('div');
       d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#12041f;color:#fff;font:20px system-ui;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';

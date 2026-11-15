@@ -148,12 +148,12 @@ class AudioSys {
     const L = VOICE_LINES[charId]; if (!L) return;
     const voices = speechSynthesis.getVoices();
     const ja = voices.find(v => /^ja/i.test(v.lang));
-    const es = voices.find(v => /^es/i.test(v.lang));
-    const useJa = !!ja;
+    if (!ja) return; // solo voces en japonés; sin voz japonesa instalada, no se habla
+    const useJa = true;
     const opts = (useJa ? L.ja : L.es)[kind] || (useJa ? L.ja : L.es).stand;
     const text = Array.isArray(opts) ? opts[Math.floor(Math.random() * opts.length)] : opts;
     const u = new SpeechSynthesisUtterance(text);
-    u.voice = useJa ? ja : (es || null); u.lang = useJa ? 'ja-JP' : 'es-ES';
+    u.voice = ja; u.lang = 'ja-JP';
     u.pitch = L.pitch; u.rate = L.rate; u.volume = loud ? 1 : 0.5;
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }

@@ -309,11 +309,12 @@ export class RiderView {
     this.t += dt;
     const p = track.pos(st.s, st.lat);
     this.group.position.set(p.x, track.roadY(st.s) + track.sideHeight(st.s, st.lat) + (st.y || 0), p.z);
-    const yaw = track.yaw(st.s) + (st.a || 0);
+    // el ángulo 'a' es positivo hacia la derecha del camino; en three.js girar a la derecha es rotación Y negativa
+    const yaw = track.yaw(st.s) - (st.a || 0);
     this.group.rotation.y = yaw;
     // inclinación por la pendiente y el giro
     this.body.rotation.x = -Math.atan(track.slope(st.s)) * 0.8;
-    this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, -(st.steer || 0) * 0.12, Math.min(1, dt * 6));
+    this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, (st.steer || 0) * 0.1, Math.min(1, dt * 6));
     const v = st.v || 0;
     const stun = st.stun > 0;
     if (stun) this.body.rotation.y += dt * 14; else this.body.rotation.y = THREE.MathUtils.lerp(this.body.rotation.y, 0, Math.min(1, dt * 8));
