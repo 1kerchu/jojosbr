@@ -104,8 +104,8 @@ function nameSprite(text, color) {
   ctx.lineWidth = 10; ctx.strokeStyle = '#000'; ctx.strokeText(text, 256, 50);
   ctx.fillStyle = color; ctx.fillText(text, 256, 50);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  sp.scale.set(4, 0.75, 1); sp.renderOrder = 10;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+  sp.scale.set(0.15, 0.028, 1); sp.renderOrder = 10;
   return sp;
 }
 
