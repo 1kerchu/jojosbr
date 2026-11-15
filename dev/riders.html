@@ -1,0 +1,21 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+import * as THREE from 'three';
+import { loadAssets, RiderView } from '/src/entities.js';
+import { CHARACTERS } from '/src/characters.js';
+const q = new URLSearchParams(location.search);
+await loadAssets();
+const r = new THREE.WebGLRenderer({antialias:true}); r.setSize(innerWidth,innerHeight); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background=new THREE.Color(0x99aabb); r.outputColorSpace=THREE.SRGBColorSpace;
+s.add(new THREE.HemisphereLight(0xffffff,0x665544,2)); const d=new THREE.DirectionalLight(0xffffff,2.5); d.position.set(5,8,6); s.add(d);
+s.add(new THREE.GridHelper(80,80));
+const fake = { pos:(s_,lat,o=new THREE.Vector3())=>o.set(-lat,0,s_), roadY:()=>0, sideHeight:()=>0, yaw:()=>0, slope:()=>0 };
+const only=q.get('only'); const views = CHARACTERS.filter((c,i)=>only==null||+only===i).map((c,i)=>{ const v=new RiderView(c,c.name,true); s.add(v.group); return {v, st:{s:0, lat:(i-3)*-4.2, a:0, v:+(q.get('v')||0), y:0, steer:0}}; });
+const cam = new THREE.PerspectiveCamera(35,innerWidth/innerHeight,0.1,500);
+const mode=q.get('cam')||'side';
+if(mode==='side') cam.position.set(30,4,0); else if(mode==='front') cam.position.set(0,3,34); else if(mode==='q') cam.position.set(5.5,3.2,5.5); else cam.position.set(22,10,22);
+if(only!=null){ views[0].st.lat=0; }
+cam.lookAt(0,1.7,0);
+if(q.get('stand')) views.forEach(x=>x.v.showStand(5));
+for(let i=0;i<+(q.get('frames')||1);i++) views.forEach(x=>x.v.update(1/30,x.st,fake));
+r.render(s,cam); window.INFO=views.map(x=>x.v.char.id); window.DONE=true;
+</script></body></html>

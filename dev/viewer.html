@@ -1,0 +1,21 @@
+<!doctype html><html><body style="margin:0;background:#888"><script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+const files = (new URLSearchParams(location.search).get('m')||'Horse,johnny,johnnyrig,gyro,diego,valentine,d4c,tusk').split(',');
+const r = new THREE.WebGLRenderer({antialias:true}); r.setSize(1600,600); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background=new THREE.Color(0x8899aa);
+s.add(new THREE.HemisphereLight(0xffffff,0x444444,2)); const d=new THREE.DirectionalLight(0xffffff,2); d.position.set(3,5,8); s.add(d);
+const cam = new THREE.OrthographicCamera(-files.length*1.5,files.length*1.5,2.6,-0.6,-100,100); cam.position.set(0,1,10); 
+const side = new URLSearchParams(location.search).get('side'); if(side) cam.position.set(10,1,0); cam.lookAt(0,1,0);
+const grid=new THREE.GridHelper(40,40); s.add(grid);
+const L=new GLTFLoader(); const info=[];
+await Promise.all(files.map((f,i)=>new Promise(res=>L.load('/models/'+f+'.glb',g=>{
+  const m=g.scene; const b=new THREE.Box3().setFromObject(m); const h=b.max.y-b.min.y; const sc=2/h; m.scale.setScalar(sc);
+  const b2=new THREE.Box3().setFromObject(m); m.position.set((i-(files.length-1)/2)*3 - (b2.min.x+b2.max.x)/2*(side?0:1), -b2.min.y, side? (i-(files.length-1)/2)*3:0);
+  // marker on +Z (front) 
+  const mk=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.4,6).rotateX(Math.PI/2),new THREE.MeshBasicMaterial({color:0xff0000})); mk.position.set(m.position.x,0.1,m.position.z+1.2); s.add(mk);
+  s.add(m); const sk=[]; m.traverse(o=>{if(o.isSkinnedMesh) sk.push(o.name+':'+o.skeleton.bones.length+':'+o.skeleton.bones.slice(0,3).map(b=>b.name).join('/'))});
+  info.push(f+' size '+[b.max.x-b.min.x,h,b.max.z-b.min.z].map(v=>v.toFixed(2)).join('x')+' skinned '+sk.join(' ; ')); res();
+},undefined,e=>{info.push(f+' ERR '+e);res();}))));
+r.render(s,cam); window.INFO=info; window.DONE=true;
+</script></body></html>
