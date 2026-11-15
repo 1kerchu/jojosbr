@@ -156,3 +156,16 @@ h2 { font: 34px var(--font); letter-spacing: 2px; margin: 4px 0; color: var(--ye
   #pos { font-size: 60px; } #pos sup { font-size: 24px; } #leaderboard { display: none; } #minimap { width: 160px; height: 107px; }
   #bigtext { font-size: 90px; } #stagebanner .n { font-size: 40px; } #timer { font-size: 26px; }
 }
+
+#cond { height: 100%; background: linear-gradient(90deg, #ffb02e, #ffe14d); transition: width .2s; } #cond.mid { background: linear-gradient(90deg, #ff8a2e, #ffc04d); } #cond.bad { background: #ff3d3d; animation: blink .5s infinite; }
+.spinkey { font-size: 14px; white-space: nowrap; color: #ffd23f; }
+#spin { position: absolute; left: 50%; top: 76%; width: 0; height: 0; }
+#spin-target, #spin-ring { position: absolute; left: 0; top: 0; width: 90px; height: 90px; border-radius: 50%; transform: translate(-50%,-50%); }
+#spin-target { border: 6px solid #ffd23f; box-shadow: 0 0 0 4px #000, inset 0 0 0 3px #000, 0 0 30px #ffd23f; background: repeating-conic-gradient(rgba(255,210,63,.35) 0 15deg, transparent 15deg 30deg); animation: spin 1.2s linear infinite; }
+#spin-ring { border: 5px solid #fff; box-shadow: 0 0 0 3px #000; }
+#spin-label { position: absolute; left: 0; top: -150px; transform: translateX(-50%); white-space: nowrap; text-align: center; font-size: 34px; color: #ffd23f; -webkit-text-stroke: 1.5px #000; text-shadow: 3px 3px 0 #000; }
+#spin-label small { display: block; font: 13px system-ui; color: #fff; -webkit-text-stroke: 0; letter-spacing: 0; }
+#spin-count { position: absolute; left: 0; top: -105px; transform: translateX(-50%); font-size: 22px; text-shadow: 2px 2px 0 #000; }
+#spin-judge { position: absolute; left: 70px; top: -20px; font-size: 34px; opacity: 0; white-space: nowrap; -webkit-text-stroke: 1.5px #000; text-shadow: 3px 3px 0 #000; }
+#spin-judge.perfect { color: #ffd23f; } #spin-judge.good { color: #8af7ff; } #spin-judge.miss { color: #ff5f5f; }
+#spin-judge.pop { animation: ono .8s ease-out forwards; }

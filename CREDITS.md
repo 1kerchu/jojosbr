@@ -17,6 +17,7 @@ Los modelos se han convertido a materiales metal-roughness y recortado con gltf-
 
 ## Otros
 - Caballo animado: `Horse.glb` de los ejemplos de [three.js](https://github.com/mrdoob/three.js) (proyecto ROME, Mirada).
-- Hot Pants, Sandman y Pocoloco: jinetes low-poly generados por código (no había modelos disponibles).
+- Hot Pants, Sandman y Pocoloco: jinetes low-poly estilizados generados por código (cel shading y caras dibujadas), ya que no había modelos disponibles.
+- Voces: síntesis de voz del navegador (Web Speech API).
 - Motor: [three.js](https://threejs.org) · Red P2P: [PeerJS](https://peerjs.com) · Fuentes: Bangers y Dela Gothic One (Google Fonts, OFL).
 - Toda la música y efectos de sonido se sintetizan en el navegador con WebAudio.

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { buildProceduralRider } from './riders.js';
+export { buildProceduralRider };
 
 const BASE = import.meta.env.BASE_URL || './';
 const loader = new GLTFLoader();
@@ -26,87 +28,6 @@ export async function loadAssets(onProgress) {
 const toon = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05, ...extra });
 
 // ------------------------------------------------------------------ jinete low-poly
-function limb(len, r, mat) {
-  const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len - r * 2, 3, 7), mat);
-  m.position.y = -len / 2; m.castShadow = true;
-  g.add(m);
-  return g;
-}
-
-export function buildProceduralRider(look) {
-  const root = new THREE.Group();
-  const skin = toon(look.skin), shirt = toon(look.shirt), pants = toon(look.pants), hatM = toon(look.hatColor), acc = toon(look.accent, { emissive: look.accent, emissiveIntensity: 0.25 }), hairM = toon(look.hair);
-  const hips = new THREE.Group(); root.add(hips);
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.5, 3, 8), shirt);
-  torso.position.y = 0.45; torso.castShadow = true; hips.add(torso);
-  const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 10), acc); belt.position.y = 0.12; hips.add(belt);
-  const neck = new THREE.Group(); neck.position.y = 0.86; hips.add(neck);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), skin); head.position.y = 0.16; head.castShadow = true; neck.add(head);
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM); hair.position.y = 0.17; hair.rotation.x = -0.2; neck.add(hair);
-  // sombreros según personaje
-  const hat = new THREE.Group(); hat.position.y = 0.3; neck.add(hat);
-  switch (look.hat) {
-    case 'wide': {
-      hat.add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 16), hatM));
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.22, 12), hatM); top.position.y = 0.11; hat.add(top);
-      const gog = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 6, 14), acc); gog.position.set(0, 0.08, 0.02); gog.rotation.x = Math.PI / 2; hat.add(gog);
-      break;
-    }
-    case 'beanie': {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.23, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatM); b.position.y = -0.08; hat.add(b);
-      const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.06), acc); star.position.set(0, 0.02, 0.2); hat.add(star);
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), acc); ball.position.y = 0.16; hat.add(ball);
-      break;
-    }
-    case 'helmet': {
-      const h = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatM); h.position.y = -0.1; hat.add(h);
-      const d = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.02), acc); d.position.set(0, 0.0, 0.22); hat.add(d);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 10, 1, false, -0.8, 1.6), hatM); brim.position.set(0, -0.08, 0.16); hat.add(brim);
-      break;
-    }
-    case 'curls': {
-      for (let i = 0; i < 10; i++) {
-        const c = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), hatM);
-        const a = i / 10 * Math.PI * 2; c.position.set(Math.cos(a) * 0.2, -0.12 + (i % 2) * 0.05, Math.sin(a) * 0.2); hat.add(c);
-      }
-      const s1 = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 6, 10), hatM); s1.position.set(0, 0.0, 0); hat.add(s1);
-      break;
-    }
-    case 'hood': {
-      const h = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), hatM); h.position.y = -0.12; h.rotation.x = -0.4; hat.add(h);
-      const cross = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.02), acc); cross.position.set(0, -0.02, 0.25); hat.add(cross);
-      break;
-    }
-    case 'feather': {
-      const band = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.03, 6, 14), acc); band.rotation.x = Math.PI / 2; band.position.y = -0.1; hat.add(band);
-      for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.35, 4), toon(i === 1 ? 0xffffff : 0xd94b2b)); f.position.set(-0.05 + i * 0.05, 0.08, -0.16); f.rotation.x = -0.4; hat.add(f); }
-      const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.5, 3, 6), hairM); tail.position.set(0, -0.45, -0.18); hat.add(tail);
-      break;
-    }
-    case 'cap': {
-      const c = new THREE.Mesh(new THREE.SphereGeometry(0.225, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatM); c.position.y = -0.1; hat.add(c);
-      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.18), hatM); visor.position.set(0, -0.1, 0.25); hat.add(visor);
-      const flap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.15, 0.1), acc); flap.position.set(0.22, -0.2, 0); hat.add(flap);
-      const flap2 = flap.clone(); flap2.position.x = -0.22; hat.add(flap2);
-      break;
-    }
-  }
-  // brazos y piernas articulados
-  const armL = limb(0.6, 0.075, shirt), armR = limb(0.6, 0.075, shirt);
-  armL.position.set(0.34, 0.78, 0); armR.position.set(-0.34, 0.78, 0);
-  hips.add(armL, armR);
-  const legL = limb(0.5, 0.1, pants), legR = limb(0.5, 0.1, pants);
-  legL.position.set(0.15, 0.05, 0); legR.position.set(-0.15, 0.05, 0);
-  const shinL = limb(0.5, 0.085, pants), shinR = limb(0.5, 0.085, pants);
-  shinL.position.y = -0.5; shinR.position.y = -0.5;
-  const bootM = toon(0x2a1a10);
-  for (const sh of [shinL, shinR]) { const boot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.26), bootM); boot.position.set(0, -0.5, 0.05); sh.add(boot); }
-  legL.add(shinL); legR.add(shinR);
-  hips.add(legL, legR);
-  root.userData.rig = { hips, torso, neck, armL, armR, legL, legR, shinL, shinR };
-  return root;
-}
 
 // pose sentado en el caballo
 function poseSeated(rig, t, gallop) {
@@ -117,6 +38,7 @@ function poseSeated(rig, t, gallop) {
   rig.shinL.rotation.x = 1.5; rig.shinR.rotation.x = 1.5;
   rig.armL.rotation.set(-0.9 + Math.sin(t * gallop) * 0.1, 0, 0.2); rig.armR.rotation.set(-0.9 + Math.sin(t * gallop) * 0.1, 0, -0.2);
   rig.neck.rotation.x = -0.2;
+  if (rig.foreL) { rig.foreL.rotation.x = -0.9; rig.foreR.rotation.x = -0.9; }
 }
 // pose corriendo a pie (Sandman)
 function poseRunning(rig, t, speed) {
@@ -128,6 +50,7 @@ function poseRunning(rig, t, speed) {
   rig.shinL.rotation.x = Math.max(0, -a) * 1.4 + 0.3; rig.shinR.rotation.x = Math.max(0, a) * 1.4 + 0.3;
   rig.armL.rotation.set(-a * 1.2, 0, 0.15); rig.armR.rotation.set(a * 1.2, 0, -0.15);
   rig.neck.rotation.x = -0.3;
+  if (rig.foreL) { rig.foreL.rotation.x = -1.3; rig.foreR.rotation.x = -1.3; }
 }
 
 // ------------------------------------------------------------------ fantasma del Stand
@@ -244,7 +167,7 @@ export class RiderView {
       this.customHolder = holder;
       this.customModel = m;
     } else {
-      this.rider = buildProceduralRider(char.look);
+      this.rider = buildProceduralRider(char.look, char.id);
       this.riderRoot.add(this.rider);
       if (this.onFoot) this.rider.position.y = 1.0;
     }

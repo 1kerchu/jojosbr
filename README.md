@@ -18,7 +18,17 @@ Recoge las 9 partes del **Cadáver Sagrado** para ganar puntos extra y recargar 
 
 ## Controles
 `W` galopar · `S` frenar · `A/D` girar · `Shift` esprintar (gasta estamina) · `Espacio` saltar ·
-`E` Stand · `C` cámara · `M` silencio · `Esc` pausa. También funciona con mando y en móvil (botones táctiles).
+`E` Stand · `Q` Golden Spin · `C` cámara · `M` silencio · `V` voces · `Esc` pausa.
+También funciona con mando (LB = Golden Spin) y en móvil (botones táctiles).
+
+## Mecánicas de carrera
+- **Estamina**: el esprint la gasta; si llega a cero el caballo se agota un rato.
+- **Golden Spin** (`Q`): minijuego de ritmo de 3 pulsaciones. Pulsa cuando el anillo encaje en el círculo dorado.
+  Cada acierto recupera estamina; con 3 perfectos haces un *GOLDEN SPIN* con turbo. Se recarga en 12 s.
+- **Estado del caballo**: tropezar con obstáculos, recibir golpes, galopar fuera del camino o esprintar sin estamina
+  lo desgastan y reduce su velocidad máxima. Se recupera con partes del Cadáver y con Golden Spin perfectos.
+- **Rebufo**: ir pegado detrás de otro jinete da velocidad extra.
+- **Salida perfecta**: pulsa `W` justo al decir GO (antes de tiempo = salida en falso).
 
 ## Jugar con amigos
 1. Uno pulsa **Crear sala** y comparte el código (o el enlace con «Copiar enlace»).

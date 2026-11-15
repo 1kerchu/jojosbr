@@ -12,7 +12,7 @@ const fake = { pos:(s_,lat,o=new THREE.Vector3())=>o.set(-lat,0,s_), roadY:()=>0
 const only=q.get('only'); const views = CHARACTERS.filter((c,i)=>only==null||+only===i).map((c,i)=>{ const v=new RiderView(c,c.name,true); s.add(v.group); return {v, st:{s:0, lat:(i-3)*-4.2, a:0, v:+(q.get('v')||0), y:0, steer:0}}; });
 const cam = new THREE.PerspectiveCamera(35,innerWidth/innerHeight,0.1,500);
 const mode=q.get('cam')||'side';
-if(mode==='side') cam.position.set(30,4,0); else if(mode==='front') cam.position.set(0,3,34); else if(mode==='q') cam.position.set(5.5,3.2,5.5); else cam.position.set(22,10,22);
+if(mode==='side') cam.position.set(30,4,0); else if(mode==='front') cam.position.set(0,3,34); else if(mode==='q') cam.position.set(3.2,2.6,3.6); else cam.position.set(22,10,22);
 if(only!=null){ views[0].st.lat=0; }
 cam.lookAt(0,1.7,0);
 if(q.get('stand')) views.forEach(x=>x.v.showStand(5));

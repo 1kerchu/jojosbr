@@ -1,20 +1,8 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { MangaPass } from './mangapass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-
-// Limpia NaN/infinitos antes del bloom (si no, un solo píxel corrupto llena la pantalla)
-const SanitizeShader = {
-  uniforms: { tDiffuse: { value: null } },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
-    void main(){ vec4 c = texture2D(tDiffuse, vUv);
-      bvec4 bad = bvec4(c.r != c.r || c.r > 1e4, c.g != c.g || c.g > 1e4, c.b != c.b || c.b > 1e4, false);
-      if (any(bad)) c = vec4(0.0, 0.0, 0.0, 1.0);
-      gl_FragColor = vec4(min(c.rgb, vec3(16.0)), 1.0); }`
-};
 import { Track, STAGES, ROAD_HALF, LAT_LIMIT } from './track.js';
 import { RiderView } from './entities.js';
 import { charById } from './characters.js';
@@ -83,8 +71,8 @@ export class Game {
     this.sun.shadow.bias = -0.0005;
     this.scene.add(this.sun, this.sun.target);
     this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new ShaderPass(SanitizeShader));
+    this.manga = new MangaPass(this.scene, this.camera);
+    this.composer.addPass(this.manga);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.45, 1.6);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -185,7 +173,7 @@ export class Game {
     const row = Math.floor(i / 4), col = i % 4;
     return {
       s: 2 - row * 7, lat: (col - 1.5) * 6.5, a: 0, v: 0, y: 0, vy: 0, steer: 0,
-      stamina: 1, exhausted: false, charge: 0.4,
+      stamina: 1, exhausted: false, charge: 0.4, cond: 1, spinCd: 0,
       eff: { slow: 0, stun: 0, blind: 0, boost: 0, dino: 0, shield: 0 },
       stun: 0, dino: 0, shield: 0
     };
@@ -216,8 +204,10 @@ export class Game {
     this.onKey = (e, down) => {
       const k = e.code;
       this.keys[k] = down;
+      if (down && !e.repeat && (k === 'KeyQ' || k === 'KeyR')) this.spinPress();
       if (down && k === 'KeyC') this.camMode = (this.camMode + 1) % 3;
       if (down && k === 'KeyM') { audio.setMuted(!audio.muted); }
+      if (down && k === 'KeyV') { audio.voicesOn = !audio.voicesOn; this.toast(audio.voicesOn ? '🗣️ Voces activadas' : '🔇 Voces desactivadas'); }
       if (down && k === 'Escape') this.togglePause();
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     };
@@ -227,7 +217,7 @@ export class Game {
     this.touch = { steer: 0, up: false, jump: false, sprint: false, ability: false, down: false };
     document.querySelectorAll('[data-touch]').forEach(btn => {
       const key = btn.dataset.touch;
-      const set = (v) => (e) => { e.preventDefault(); if (key === 'left') this.touch.steer = v ? -1 : 0; else if (key === 'right') this.touch.steer = v ? 1 : 0; else this.touch[key] = v; };
+      const set = (v) => (e) => { e.preventDefault(); if (key === 'spin') { if (v) this.spinPress(); return; } if (key === 'left') this.touch.steer = v ? -1 : 0; else if (key === 'right') this.touch.steer = v ? 1 : 0; else this.touch[key] = v; };
       btn.addEventListener('touchstart', set(true), { passive: false }); btn.addEventListener('touchend', set(false), { passive: false });
       btn.addEventListener('mousedown', set(true)); btn.addEventListener('mouseup', set(false)); btn.addEventListener('mouseleave', set(false));
     });
@@ -244,6 +234,7 @@ export class Game {
       up = up || g.buttons[7]?.pressed || g.buttons[0]?.pressed && false || (g.axes[1] < -0.5);
       if (g.buttons[7]?.value > 0.2) up = true;
       down = down || g.buttons[6]?.value > 0.2;
+      const lb = !!g.buttons[4]?.pressed; if (lb && !this._lb) this.spinPress(); this._lb = lb;
       jump = jump || g.buttons[0]?.pressed; sprint = sprint || g.buttons[5]?.pressed || g.buttons[1]?.pressed; ability = ability || g.buttons[2]?.pressed || g.buttons[3]?.pressed;
     }
     return { steer: clamp(steer, -1, 1), up, down, jump, sprint, ability };
@@ -359,6 +350,66 @@ export class Game {
     }
     return true;
   }
+  // ------------------------------------------------------------------ desgaste del caballo
+  wear(p, amount) {
+    const st = p.st, before = st.cond;
+    st.cond = Math.max(0.15, st.cond - amount);
+    if (p.isLocal && before >= 0.4 && st.cond < 0.4) this.toast('⚠️ Tu caballo está muy castigado: corre menos. Recoge partes del Cadáver o haz un Golden Spin perfecto.');
+  }
+
+  // ------------------------------------------------------------------ Golden Spin: minijuego de ritmo para recuperar estamina
+  spinPress() {
+    const me = this.me; if (!me || this.state === 'countdown' || me.finished) return;
+    const sp = this.spin;
+    if (!sp) {
+      if (me.st.spinCd > 0) { this.toast(`Golden Spin listo en ${Math.ceil(me.st.spinCd)} s`); return; }
+      this.spin = { t: 0, beats: [0.9, 1.7, 2.5], res: [] };
+      audio.sfx('spinstart');
+      $('spin').classList.remove('hidden');
+      return;
+    }
+    const next = sp.beats[sp.res.length]; if (next == null) return;
+    const err = Math.abs(sp.t - next);
+    const r = err < 0.09 ? 'perfect' : err < 0.2 ? 'good' : 'miss';
+    sp.res.push(r);
+    audio.sfx(r === 'miss' ? 'spinmiss' : 'spinhit');
+    const el = $('spin-judge'); el.textContent = r === 'perfect' ? '¡PERFECTO!' : r === 'good' ? 'BIEN' : 'FALLO'; el.className = r; void el.offsetWidth; el.classList.add('pop');
+    if (sp.res.length === sp.beats.length) this.finishSpin();
+  }
+  updateSpin(dt) {
+    const sp = this.spin; if (!sp) return;
+    sp.t += dt;
+    const next = sp.beats[sp.res.length];
+    if (next != null && sp.t > next + 0.25) { sp.res.push('miss'); audio.sfx('spinmiss'); if (sp.res.length === sp.beats.length) { this.finishSpin(); return; } }
+    const nb = sp.beats[sp.res.length];
+    if (nb != null) {
+      const k = clamp((nb - sp.t) / 0.8, 0, 1);
+      $('spin-ring').style.transform = `translate(-50%,-50%) scale(${1 + k * 2.2})`;
+      $('spin-ring').style.opacity = 1 - k * 0.5;
+    }
+    $('spin-count').textContent = `${sp.res.length}/3`;
+  }
+  finishSpin() {
+    const sp = this.spin, st = this.me.st; this.spin = null;
+    const perfect = sp.res.filter(r => r === 'perfect').length, good = sp.res.filter(r => r === 'good').length;
+    st.stamina = Math.min(1, st.stamina + perfect * 0.2 + good * 0.12 + 0.05);
+    st.cond = Math.min(1, st.cond + perfect * 0.05);
+    if (st.stamina > 0.35) st.exhausted = false;
+    st.spinCd = 12;
+    setTimeout(() => $('spin').classList.add('hidden'), 500);
+    if (perfect === 3) {
+      st.eff.boost = Math.max(st.eff.boost, 2.5);
+      this.bigText('GOLDEN SPIN!!', 'gold'); this.flash('#ffd23f'); audio.sfx('golden'); audio.voice(this.me.char.id, 'spin');
+      this.sendEvent({ k: 'fx', id: this.me.id, by: this.me.id, kind: 'golden' });
+    } else this.toast(`Spin: ${perfect} perfectos, ${good} bien → +${Math.round((perfect * 0.2 + good * 0.12 + 0.05) * 100)}% estamina`);
+  }
+  botSpin(p) {
+    const q = p.skill > 0.97 ? 0.75 : 0.5;
+    let perfect = 0; for (let i = 0; i < 3; i++) if (Math.random() < q) perfect++;
+    p.st.stamina = Math.min(1, p.st.stamina + perfect * 0.2 + 0.1); p.st.exhausted = false; p.st.spinCd = 12;
+    if (perfect === 3) { p.st.eff.boost = 2.5; this.sendEvent({ k: 'fx', id: p.id, by: p.id, kind: 'golden' }); }
+  }
+
   luckText(p, txt) { if (p.isLocal) this.toast('🍀 Hey Ya!: ' + txt); }
   nearestAhead(p, range) {
     let best = null, bd = Infinity;
@@ -375,7 +426,7 @@ export class Game {
   applyHit(p, eff, dur, by) {
     const st = p.st;
     if (st.eff.shield > 0) { this.sendEvent({ k: 'blocked', target: p.id }); return; }
-    if (eff === 'stun') { st.eff.stun = Math.max(st.eff.stun, dur); st.v *= 0.45; }
+    if (eff === 'stun') { st.eff.stun = Math.max(st.eff.stun, dur); st.v *= 0.45; this.wear(p, 0.05); }
     else if (eff === 'slow') st.eff.slow = Math.max(st.eff.slow, dur);
     else if (eff === 'blind') { st.eff.blind = Math.max(st.eff.blind, dur); st.eff.slow = Math.max(st.eff.slow, dur * 0.6); }
     if (p.isLocal) { this.shake = 0.6; audio.sfx('hit'); }
@@ -445,7 +496,14 @@ export class Game {
     const p = this.players.get(m.id);
     if (m.kind === 'kill') { const i = this.projectiles.findIndex(x => x.pid === m.pid); if (i >= 0) { this.scene.remove(this.projectiles[i].mesh); this.projectiles.splice(i, 1); } return; }
     if (!p) return;
+    if (m.kind === 'golden') {
+      const gp = p.view.group.position.clone(); gp.y += 2;
+      this.sparks(gp, '#ffd23f', 90, 10);
+      if (!p.isLocal && this.me && this.distTo(p) < 150) this.popWorld('GOLDEN SPIN!', gp, '#ffd23f');
+      return;
+    }
     p.view.showStand(1.8);
+    if (this.me && this.distTo(p) < 150) audio.voice(p.char.id, 'stand', p.isLocal);
     const wp = p.view.group.position.clone(); wp.y += 2.5;
     const near = p.isLocal || (this.me && this.distTo(p) < 150);
     if (near) {
@@ -511,7 +569,7 @@ export class Game {
     const p = this.players.get(by);
     if (!p) return;
     p.parts++;
-    if (p.sim) { p.st.charge = 1; p.st.eff.boost = Math.max(p.st.eff.boost, 2.5); p.st.stamina = Math.min(1, p.st.stamina + 0.4); }
+    if (p.sim) { p.st.charge = 1; p.st.eff.boost = Math.max(p.st.eff.boost, 2.5); p.st.stamina = Math.min(1, p.st.stamina + 0.4); p.st.cond = Math.min(1, p.st.cond + 0.15); }
     if (p.isLocal) {
       audio.sfx('pickup');
       this.bigText(`CADÁVER SAGRADO<br><small>${part.name} · +${PART_POINTS} pts · Stand cargado</small>`, 'gold');
@@ -530,9 +588,10 @@ export class Game {
     const sprinting = inp.sprint && inp.up && !st.exhausted && st.stamina > 0;
     if (sprinting) {
       max *= 1.3; st.stamina -= 0.14 / c.stamina * dt;
-      if (st.stamina <= 0) { st.stamina = 0; st.exhausted = true; if (p.isLocal) this.toast('¡Tu caballo está agotado! Deja de esprintar un rato.'); }
+      if (st.stamina < 0.15) this.wear(p, 0.03 * dt);
+      if (st.stamina <= 0) { st.stamina = 0; st.exhausted = true; this.wear(p, 0.06); if (p.isLocal) this.toast('¡Tu caballo está agotado! Usa el Golden Spin (Q) para recuperarte.'); }
     } else {
-      st.stamina = Math.min(1, st.stamina + 0.075 * c.stamina * dt * (inp.up ? 1 : 1.8));
+      st.stamina = Math.min(1, st.stamina + 0.075 * c.stamina * dt * (inp.up ? 1 : 1.8) * (0.6 + 0.4 * st.cond));
       if (st.exhausted && st.stamina > 0.35) st.exhausted = false;
     }
     st.sprinting = sprinting;
@@ -546,12 +605,14 @@ export class Game {
     max *= 1 + 0.1 * st.draft;
     if (draft && st.draft > 0.6) st.stamina = Math.min(1, st.stamina + 0.03 * dt);
     if (st.exhausted) max *= 0.8;
+    max *= 0.82 + 0.18 * st.cond;   // un caballo desgastado corre menos
+    st.spinCd = Math.max(0, st.spinCd - dt);
     if (e.boost > 0) max *= 1.45;
     if (e.dino > 0) max *= 1.35;
     if (e.slow > 0) max *= 0.6;
     if (e.stun > 0) max *= 0.25;
     const off = Math.abs(st.lat) > ROAD_HALF + 1;
-    if (off) max *= e.dino > 0 ? 0.92 : 0.72;
+    if (off) { max *= e.dino > 0 ? 0.92 : 0.72; if (st.v > 25) this.wear(p, 0.004 * dt); }
     max *= clamp(1 - T.slope(st.s) * 1.6, 0.78, 1.15);
     const target = !racing ? 0 : inp.up ? max : (inp.down ? 0 : max * 0.2);
     const rate = target > st.v ? 0.62 * c.accel : (inp.down ? 2.5 : 0.7);
@@ -580,7 +641,7 @@ export class Game {
         p.lastObs = o.id;
         if (e.dino > 0) { if (p.isLocal) this.popWorld('CRASH!', p.view.group.position.clone().setY(p.view.group.position.y + 3), '#ffb02e'); continue; }
         if (o.type === 'weed') { st.v *= 0.8; continue; }
-        st.v *= 0.35; e.stun = Math.max(e.stun, 0.55);
+        st.v *= 0.35; e.stun = Math.max(e.stun, 0.55); this.wear(p, 0.08);
         if (p.isLocal) { audio.sfx('stumble'); this.shake = 0.5; this.popWorld(o.type === 'log' ? '¡TRONCO!' : 'GOGYAAN!', p.view.group.position.clone().setY(p.view.group.position.y + 3), '#ffffff'); }
       }
     }
@@ -645,6 +706,7 @@ export class Game {
     let leader = -Infinity; for (const o of this.players.values()) if (!o.bot) leader = Math.max(leader, o.st.s);
     const gap = leader - st.s;
     p.skill = clamp((p.baseSkill || (p.baseSkill = p.skill)) + clamp(gap / 3000, -0.07, 0.08), 0.85, 1.1);
+    if (st.spinCd <= 0 && st.stamina < 0.3 && Math.random() < dt * 0.8) this.botSpin(p);
     let ability = false;
     ai.abilityDelay -= dt;
     if (st.charge >= 1 && ai.abilityDelay <= 0) {
@@ -716,7 +778,7 @@ export class Game {
     }
     this.updateProjectiles(dt);
     this.updateParticles(dt);
-    this.track.update(dt, this.time);
+    this.track.update(dt, this.time, this.camera);
     // envío de estado
     this.sendT -= dt;
     if (this.sendT <= 0 && !this.net.offline) {
@@ -791,8 +853,12 @@ export class Game {
     this.hemi.intensity = lerp(1.35, 0.8, p.city) + p.snow * 0.25;
     this.hemi.color.copy(p.skyTop).lerp(new THREE.Color(0xffffff), 0.5);
     this.bloom.strength = lerp(0.5, 0.9, p.city);
+    // gradación por etapa: cálido en el desierto, frío en montaña, magenta de noche
+    const tint = this.manga.uniforms.tint.value;
+    tint.setRGB(1, 1, 1).lerp(new THREE.Color(1.08, 0.97, 0.88), p.mesa).lerp(new THREE.Color(0.92, 0.98, 1.08), p.snow).lerp(new THREE.Color(1.05, 0.92, 1.1), p.city);
     // cambio de etapa del jugador
     const si = this.track.stageIndex(Math.max(0, s));
+    audio.setStage(si, s > this.track.finishS - 900);
     if (si !== this.curStage) { if (this.curStage !== undefined && this.state !== 'countdown') this.stageBanner(si); this.curStage = si; }
   }
 
@@ -828,6 +894,10 @@ export class Game {
     $('charge').style.width = (st.charge * 100).toFixed(1) + '%';
     $('ability').classList.toggle('ready', st.charge >= 1);
     $('parts').textContent = me.parts;
+    $('cond').style.width = (st.cond * 100).toFixed(1) + '%';
+    $('cond').className = st.cond < 0.4 ? 'bad' : st.cond < 0.7 ? 'mid' : '';
+    $('spin-cd').textContent = st.spinCd > 0 ? Math.ceil(st.spinCd) + 's' : 'Q';
+    this.updateSpin(dt);
     const si = this.track.stageIndex(Math.max(0, st.s));
     $('stage').textContent = `${STAGES[si].name} · ${STAGES[si].place}`;
     const prog = clamp(st.s / this.track.finishS, 0, 1);
@@ -937,7 +1007,7 @@ export class Game {
   }
 
   onLocalFinish() {
-    audio.sfx('finish');
+    audio.sfx('finish'); audio.voice(this.me.char.id, 'win');
     const pos = this.ranking().indexOf(this.me) + 1;
     this.bigText(`GOAL!!<br><small>${ordinal(pos)} · ${fmtTime(this.me.finishTime)}</small>`, 'goal');
     this.flash('#ffe14d');

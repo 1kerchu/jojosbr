@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32, fbm, noise2, clamp, lerp, smooth } from './util.js';
+import { buildScenery, updateScenery } from './scenery.js';
 
 export const ROAD_HALF = 14;      // mitad del ancho del camino de tierra
 export const LAT_LIMIT = 40;      // límite lateral jugable
@@ -71,6 +72,24 @@ function textCanvasTexture(lines, opts = {}) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return tex;
+}
+
+// textura de detalle en escala de grises que se multiplica por el color del terreno
+function detailTexture(seed) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(256, 256), r = mulberry32(seed ^ 0x9e37);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const n = fbm(x / 32, y / 32, 4) * 0.5 + 0.5;
+    let v = 200 + n * 55 - (r() < 0.04 ? 40 : 0);
+    const i = (y * 256 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.min(255, v); img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  // briznas / piedrecitas
+  for (let i = 0; i < 900; i++) { ctx.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '90,90,90'},${0.25 + r() * 0.3})`; ctx.fillRect(r() * 256, r() * 256, 1 + r() * 2, 1 + r() * 3); }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
 }
 
 function dirtTexture(seed) {
@@ -229,6 +248,7 @@ export class Track {
     this.buildObstacles(group);
     this.buildParts(group);
     this.buildCrowd(group);
+    buildScenery(this, group);
     return group;
   }
 
@@ -241,6 +261,7 @@ export class Track {
     const cols = lats.length;
     const pos = new Float32Array(rows * cols * 3);
     const col = new Float32Array(rows * cols * 3);
+    const uv = new Float32Array(rows * cols * 2);
     const v = new THREE.Vector3();
     const snowC = new THREE.Color(0xf4f8ff), stripeA = new THREE.Color(0xe8894a), stripeB = new THREE.Color(0x9c3b22);
     const tmp = new THREE.Color();
@@ -255,7 +276,8 @@ export class Track {
         v.y = ry + h - (Math.abs(lat) < ROAD_HALF + 2 ? 0.15 : 0);
         const k = (r * cols + c) * 3;
         pos[k] = v.x; pos[k + 1] = v.y; pos[k + 2] = v.z;
-        const n = noise2(s * 0.03, lat * 0.05) * 0.5 + 0.5;
+        uv[(r * cols + c) * 2] = lat / 9; uv[(r * cols + c) * 2 + 1] = s / 9;
+        const n = noise2(s * 0.03, lat * 0.05) * 0.5 + 0.5 + (noise2(s * 0.004, lat * 0.004 + 50) * 0.35);
         tmp.copy(p.colA).lerp(p.colB, n);
         if (p.mesa > 0.01 && h > 6) {
           const band = Math.floor(h / 4.5) % 2 === 0 ? stripeA : stripeB;
@@ -274,9 +296,19 @@ export class Track {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    // las laderas empinadas se ven de roca
+    const nrm = geo.attributes.normal, rockA = new THREE.Color(0x6e6258), rockMesa = new THREE.Color(0xb0603a), c2 = new THREE.Color();
+    for (let i = 0; i < nrm.count; i++) {
+      const steep = smooth(0.82, 0.55, nrm.getY(i));
+      if (steep <= 0) continue;
+      const r = Math.floor(i / cols), p = this.params(r * 6);
+      c2.setRGB(col[i * 3], col[i * 3 + 1], col[i * 3 + 2]).lerp(p.mesa > 0.3 ? rockMesa : rockA, steep * 0.7 * (1 - p.city));
+      col[i * 3] = c2.r; col[i * 3 + 1] = c2.g; col[i * 3 + 2] = c2.b;
+    }
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detailTexture(this.seed) });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     group.add(mesh);
@@ -400,7 +432,7 @@ export class Track {
     const rng = mulberry32(this.seed ^ 0xabc);
     const byType = {};
     const area = this.finishS;
-    const count = Math.floor(area / 4);
+    const count = Math.floor(area / 1.6);
     const dummy = new THREE.Object3D();
     for (let i = 0; i < count; i++) {
       const s = rng() * this.length;
@@ -631,7 +663,8 @@ export class Track {
     group.add(inst);
   }
 
-  update(dt, time) {
+  update(dt, time, camera) {
+    updateScenery(this, dt, time, camera);
     for (const g of this.partMeshes) {
       if (!g.visible) continue;
       g.userData.core.rotation.y += dt * 2;

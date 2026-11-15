@@ -31,7 +31,7 @@
       </div>
       <div id="menu-status"></div>
       <div class="controls-help">
-        <b>W</b> galopar · <b>S</b> frenar · <b>A/D</b> girar · <b>Shift</b> esprintar (gasta estamina) · <b>Espacio</b> saltar · <b>E</b> usar Stand · <b>C</b> cámara · <b>M</b> silencio
+        <b>W</b> galopar · <b>S</b> frenar · <b>A/D</b> girar · <b>Shift</b> esprintar (gasta estamina) · <b>Espacio</b> saltar · <b>E</b> usar Stand · <b>Q</b> Golden Spin (ritmo) · <b>C</b> cámara · <b>M</b> silencio · <b>V</b> voces
       </div>
     </div>
     <button id="btn-mute" class="corner">🔊</button>
@@ -79,17 +79,19 @@
     <div id="hud-char">
       <div class="row"><span class="lbl">ESTAMINA</span><div class="bar"><div id="stamina"></div></div></div>
       <div id="ability" class="row"><span class="lbl" id="stand-name">「Stand」</span><div class="bar"><div id="charge"></div></div><span id="ability-name"></span><kbd>E</kbd></div>
+      <div class="row"><span class="lbl">CABALLO</span><div class="bar"><div id="cond"></div></div><span class="spinkey">Golden Spin <kbd id="spin-cd">Q</kbd></span></div>
       <div class="row small"><span>✦ Cadáver: <b id="parts">0</b>/9</span><span><b id="speed">0</b> km/h</span></div>
     </div>
     <div id="bigtext"></div>
     <div id="stagebanner"></div>
     <div id="standbanner"></div>
     <div id="introcard"></div>
+    <div id="spin" class="hidden"><div id="spin-target"></div><div id="spin-ring"></div><div id="spin-label">GOLDEN SPIN<small>pulsa <b>Q</b> cuando el anillo encaje</small></div><div id="spin-count">0/3</div><div id="spin-judge"></div></div>
     <div id="draft">REBUFO スリップストリーム</div>
     <div id="toasts"></div>
     <div id="touch" class="hidden">
       <div class="tl"><button data-touch="left">◀</button><button data-touch="right">▶</button></div>
-      <div class="tr"><button data-touch="ability">E</button><button data-touch="jump">⤒</button><button data-touch="sprint">»</button><button data-touch="up">▲</button></div>
+      <div class="tr"><button data-touch="ability">E</button><button data-touch="spin">✪</button><button data-touch="jump">⤒</button><button data-touch="sprint">»</button><button data-touch="up">▲</button></div>
     </div>
   </section>
 
